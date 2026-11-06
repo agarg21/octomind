@@ -280,9 +280,19 @@ jobs:
         mkdir -p onnxruntime-src
         chmod -R 777 onnxruntime-src
 
+        mkdir -p "$HOME/.cargo/registry" "$HOME/.cargo/git"
+        # The cargo cache step below can only save files the runner user can
+        # read. The container runs as root, and cargo's incremental session
+        # locks are mode 600, so tar failed and the cache was never saved.
+        # Registry and git live in CARGO_HOME inside the image: mount them so
+        # the cached paths are the ones cargo uses.
+        trap 'sudo chown -R "$(id -u):$(id -g)" target "$HOME/.cargo/registry" "$HOME/.cargo/git" onnxruntime-src' EXIT
         docker run --rm \
           --user 0:0 \
+          -e CARGO_INCREMENTAL=0 \
           -v "$(pwd):/workspace" \
+          -v "$HOME/.cargo/registry:/usr/local/cargo/registry" \
+          -v "$HOME/.cargo/git:/usr/local/cargo/git" \
           -w /workspace \
           rust:1.99.1-alpine3.22 \
           sh -c '
